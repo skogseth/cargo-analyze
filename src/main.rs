@@ -1,15 +1,16 @@
+use std::ffi::OsString;
 use std::io::BufReader;
 use std::path::PathBuf;
 use std::process::Command;
-use std::{ffi::OsString, process::Stdio};
+use std::process::Stdio;
 
 use anyhow::{anyhow, Context};
 use clap::Parser;
 
-use cargo_analyze::*;
+use cargo_analyze::LinkedLibs;
 
 fn main() -> Result<(), anyhow::Error> {
-    let cli = Cli::parse();
+    let cli = parse();
 
     let extra_args = cli
         .manifest_path
@@ -38,9 +39,22 @@ fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Parser)]
+fn parse() -> Cli {
+    let mut args: Vec<String> = std::env::args().collect();
+
+    // Strip extra `analyze`, if invoked via cargo:
+    // `cargo-analyze ...` -> ["cargo-analyze", ...]
+    // `cargo analyze ...` -> ["cargo-analyze", "analyze", ...]
+    if args.get(1).map(String::as_str) == Some("analyze") {
+        args.remove(1);
+    }
+
+    Cli::parse_from(args)
+}
+
+#[derive(Debug, Parser)]
+#[command(bin_name = "cargo")]
 struct Cli {
-    /// Currently ignored
     #[arg(long)]
     manifest_path: Option<PathBuf>,
 }
