@@ -37,11 +37,12 @@ fn main() -> Result<(), anyhow::Error> {
     let metadata = Metadata::from_reader(reader);
     println!("{}", metadata.linked_libs);
 
-    if cli.verbose {
+    if cli.inspect_binary {
         for executable in metadata.executables {
-            println!("Path to executable: {executable}");
+            cargo_analyze::binary::analyze(executable.as_std_path())?;
         }
     }
+
     Ok(())
 }
 
@@ -64,6 +65,6 @@ struct Cli {
     #[arg(long)]
     manifest_path: Option<PathBuf>,
 
-    #[arg(short, long, default_value_t = false)]
-    verbose: bool,
+    #[arg(long, default_value_t = false)]
+    inspect_binary: bool,
 }

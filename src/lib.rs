@@ -7,6 +7,8 @@ use cargo_metadata::camino::Utf8PathBuf;
 use cargo_metadata::BuildScript;
 use cargo_metadata::Message;
 
+pub mod binary;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum LibraryType {
     Static,
