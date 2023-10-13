@@ -16,7 +16,7 @@ fn main() -> Result<(), anyhow::Error> {
         .manifest_path
         .clone()
         .map(|path| vec![OsString::from("--manifest-path"), path.into_os_string()])
-        .unwrap_or_else(Vec::new);
+        .unwrap_or_default();
 
     let output = Command::new("cargo")
         .arg("build")
@@ -39,7 +39,8 @@ fn main() -> Result<(), anyhow::Error> {
 
     if cli.inspect_binary {
         for executable in metadata.executables {
-            cargo_analyze::binary::analyze(executable.as_std_path())?;
+            let libs = cargo_analyze::binary::analyze(executable.as_std_path())?;
+            println!("{libs:#?}");
         }
     }
 

@@ -4,21 +4,19 @@ use anyhow::{anyhow, Context};
 use goblin::mach::Mach;
 use goblin::Object;
 
-pub fn analyze(filepath: &Path) -> Result<(), anyhow::Error> {
+pub fn analyze(filepath: &Path) -> Result<Vec<String>, anyhow::Error> {
     let buffer = std::fs::read(filepath)
         .with_context(|| format!("Failed to read file at {} to buffer", filepath.display()))?;
     let object = Object::parse(&buffer).context("Failed to parse buffer as goblin object")?;
 
     match object {
         Object::Elf(elf) => {
-            println!("Elf");
-            println!("Libs: {:#?}", elf.libraries);
-            Ok(())
+            let libs = elf.libraries.into_iter().map(ToOwned::to_owned).collect();
+            Ok(libs)
         }
         Object::Mach(Mach::Binary(mach)) => {
-            println!("Binary mach");
-            println!("Libs: {:#?}", mach.libs);
-            Ok(())
+            let libs = mach.libs.into_iter().map(ToOwned::to_owned).collect();
+            Ok(libs)
         }
         //
         // --------------------------
