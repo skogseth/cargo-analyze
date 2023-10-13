@@ -3,6 +3,7 @@ use std::fmt::{self, Display};
 use std::io::BufRead;
 use std::str::FromStr;
 
+use cargo_metadata::camino::Utf8PathBuf;
 use cargo_metadata::BuildScript;
 use cargo_metadata::Message;
 
@@ -81,33 +82,6 @@ impl LinkedLibs {
         }
     }
 
-    pub fn from_metadata(reader: impl BufRead) -> Self {
-        let mut libs = Self::new();
-
-        for message in Message::parse_stream(reader) {
-            if let Message::BuildScriptExecuted(script) = message.unwrap() {
-                let BuildScript { linked_libs, .. } = script;
-
-                if linked_libs.is_empty() {
-                    continue;
-                }
-
-                for lib in linked_libs {
-                    // Convert Utf8PathBuf to String
-                    let lib = lib.into_string();
-
-                    // Parse output
-                    let (lib_type, lib_name) = parse_library_output(lib);
-
-                    // Add to libs
-                    libs.add(lib_type, lib_name);
-                }
-            }
-        }
-
-        libs
-    }
-
     pub fn all_empty(&self) -> bool {
         self.known.is_empty() && self.unknown.is_empty()
     }
@@ -153,4 +127,53 @@ fn set_to_string<T: Display>(set: &BTreeSet<T>) -> String {
 
     s += &prev.to_string();
     s + " }"
+}
+
+pub struct Metadata {
+    pub linked_libs: LinkedLibs,
+    pub executables: Vec<Utf8PathBuf>,
+}
+
+impl Metadata {
+    fn new() -> Self {
+        Self {
+            linked_libs: LinkedLibs::new(),
+            executables: Vec::new(),
+        }
+    }
+
+    pub fn from_reader(reader: impl BufRead) -> Self {
+        let mut metadata = Metadata::new();
+
+        for message in Message::parse_stream(reader) {
+            match message.unwrap() {
+                Message::BuildScriptExecuted(script) => {
+                    let BuildScript { linked_libs, .. } = script;
+
+                    if linked_libs.is_empty() {
+                        continue;
+                    }
+
+                    for lib in linked_libs {
+                        // Convert Utf8PathBuf to String
+                        let lib = lib.into_string();
+
+                        // Parse output
+                        let (lib_type, lib_name) = parse_library_output(lib);
+
+                        // Add to libs
+                        metadata.linked_libs.add(lib_type, lib_name);
+                    }
+                }
+                Message::CompilerArtifact(artifact) => {
+                    if let Some(executable) = artifact.executable {
+                        metadata.executables.push(executable);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        metadata
+    }
 }

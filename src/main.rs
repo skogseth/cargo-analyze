@@ -7,13 +7,14 @@ use std::process::Stdio;
 use anyhow::{anyhow, Context};
 use clap::Parser;
 
-use cargo_analyze::LinkedLibs;
+use cargo_analyze::Metadata;
 
 fn main() -> Result<(), anyhow::Error> {
     let cli = parse();
 
     let extra_args = cli
         .manifest_path
+        .clone()
         .map(|path| vec![OsString::from("--manifest-path"), path.into_os_string()])
         .unwrap_or_else(Vec::new);
 
@@ -33,9 +34,14 @@ fn main() -> Result<(), anyhow::Error> {
     }
 
     let reader = BufReader::new(&output.stdout[..]);
-    let libs = LinkedLibs::from_metadata(reader);
-    println!("{libs}");
+    let metadata = Metadata::from_reader(reader);
+    println!("{}", metadata.linked_libs);
 
+    if cli.verbose {
+        for executable in metadata.executables {
+            println!("Path to executable: {executable}");
+        }
+    }
     Ok(())
 }
 
@@ -57,4 +63,7 @@ fn parse() -> Cli {
 struct Cli {
     #[arg(long)]
     manifest_path: Option<PathBuf>,
+
+    #[arg(short, long, default_value_t = false)]
+    verbose: bool,
 }
