@@ -1,8 +1,8 @@
+use std::collections::VecDeque;
 use std::ffi::{OsStr, OsString};
 use std::io::{BufReader, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use std::collections::VecDeque;
 
 use anyhow::{anyhow, Context};
 use clap::Parser;
