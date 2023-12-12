@@ -1,5 +1,5 @@
-use std::ffi::OsString;
-use std::io::BufReader;
+use std::ffi::OsStr;
+use std::io::{BufReader, Write};
 use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
@@ -10,13 +10,12 @@ use clap::Parser;
 use cargo_analyze::Metadata;
 
 fn main() -> Result<(), anyhow::Error> {
-    let cli = parse();
+    let cli = Cli::parse();
 
-    let extra_args = cli
-        .manifest_path
-        .clone()
-        .map(|path| vec![OsString::from("--manifest-path"), path.into_os_string()])
-        .unwrap_or_else(Vec::new);
+    let extra_args = match &cli.manifest_path {
+        Some(path) => vec![OsStr::new("--manifest-path"), path.as_os_str()],
+        None => Vec::new(),
+    };
 
     let output = Command::new("cargo")
         .arg("build")
@@ -29,41 +28,64 @@ fn main() -> Result<(), anyhow::Error> {
         .context("failed whilst waiting for `cargo build`")?;
 
     if !output.status.success() {
-        let msg = anyhow!("`cargo build` failed: {}", output.status);
-        return Err(msg);
+        return Err(anyhow!("`cargo build` failed: {}", output.status));
     }
 
     let reader = BufReader::new(&output.stdout[..]);
     let metadata = Metadata::from_reader(reader);
-    println!("{}", metadata.linked_libs);
 
-    if cli.verbose {
-        for executable in metadata.executables {
-            println!("Path to executable: {executable}");
+    // Makeshift `try`-block
+    || -> Result<(), anyhow::Error> {
+        let mut stdout = std::io::stdout().lock();
+
+        stdout.write_all(b"Libraries linked by rustc:\n")?;
+        writeln!(stdout, "{}", metadata.linked_libs)?;
+
+        if !cli.ignore_binary_analysis {
+            for executable in &metadata.executables {
+                let mut libs = cargo_analyze::binary::analyze(executable.as_std_path())?;
+                libs.sort_unstable();
+                libs.retain(|e| e != "self");
+
+                let filename = executable
+                    .file_name()
+                    .expect("Failed to get filename of executable");
+                writeln!(stdout, "Libraries linked to executable `{filename}`:")?;
+
+                for lib in libs {
+                    writeln!(stdout, " - {lib}")?;
+                }
+            }
         }
-    }
+
+        Ok(())
+    }()
+    .expect("Failed to write to standard output");
+
     Ok(())
-}
-
-fn parse() -> Cli {
-    let mut args: Vec<String> = std::env::args().collect();
-
-    // Strip extra `analyze`, if invoked via cargo:
-    // `cargo-analyze ...` -> ["cargo-analyze", ...]
-    // `cargo analyze ...` -> ["cargo-analyze", "analyze", ...]
-    if args.get(1).map(String::as_str) == Some("analyze") {
-        args.remove(1);
-    }
-
-    Cli::parse_from(args)
 }
 
 #[derive(Debug, Parser)]
 #[command(bin_name = "cargo")]
 struct Cli {
-    #[arg(long)]
+    #[arg(long, value_name = "PATH")]
     manifest_path: Option<PathBuf>,
 
-    #[arg(short, long, default_value_t = false)]
-    verbose: bool,
+    #[arg(long, default_value_t = false)]
+    ignore_binary_analysis: bool,
+}
+
+impl Cli {
+    fn parse() -> Cli {
+        let mut args: Vec<String> = std::env::args().collect();
+
+        // Strip extra `analyze`, if invoked via cargo:
+        // `cargo-analyze ...` -> ["cargo-analyze", ...]
+        // `cargo analyze ...` -> ["cargo-analyze", "analyze", ...]
+        if args.get(1).map(String::as_str) == Some("analyze") {
+            args.remove(1);
+        }
+
+        Cli::parse_from(args)
+    }
 }
