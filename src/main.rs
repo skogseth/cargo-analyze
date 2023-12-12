@@ -1,8 +1,8 @@
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::io::{BufReader, Write};
 use std::path::PathBuf;
-use std::process::Command;
-use std::process::Stdio;
+use std::process::{Command, Stdio};
+use std::collections::VecDeque;
 
 use anyhow::{anyhow, Context};
 use clap::Parser;
@@ -77,15 +77,16 @@ struct Cli {
 
 impl Cli {
     fn parse() -> Cli {
-        let mut args: Vec<String> = std::env::args().collect();
+        let mut args: VecDeque<OsString> = std::env::args_os().collect();
 
         // Strip extra `analyze`, if invoked via cargo:
         // `cargo-analyze ...` -> ["cargo-analyze", ...]
         // `cargo analyze ...` -> ["cargo-analyze", "analyze", ...]
-        if args.get(1).map(String::as_str) == Some("analyze") {
-            args.remove(1);
+        if args.get(1).is_some_and(|arg| arg == OsStr::new("analyze")) {
+            args.swap_remove_front(1).expect("this element must exist");
         }
 
+        // This function will ignore it's first argument (as it is assumed to be the program name)
         Cli::parse_from(args)
     }
 }
