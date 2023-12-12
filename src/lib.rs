@@ -101,8 +101,6 @@ impl Display for LinkedLibs {
             return Ok(());
         }
 
-        writeln!(f, "Linked libraries:")?;
-
         for (key, val) in self.known.iter() {
             writeln!(f, "{key}: {}", set_to_string(val))?;
         }
@@ -122,7 +120,7 @@ fn set_to_string<T: Display>(set: &BTreeSet<T>) -> String {
 
     let mut s = String::from("{ ");
 
-    while let Some(item) = iter.next() {
+    for item in iter {
         s += &format!("{prev}, ");
         prev = item;
     }
